@@ -1,0 +1,551 @@
+{
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "developers": "Développeurs",
+    "apiKeys": "Clés API",
+    "analytics": "Analytiques",
+    "plans": "Forfaits",
+    "providers": "Fournisseurs IA",
+    "pricing": "Tarifs",
+    "usage": "Utilisation",
+    "docs": "Documentation",
+    "auditLog": "Journal d'audit",
+    "promoCodes": "Codes promo",
+    "incidents": "Incidents",
+    "organizations": "Organisations",
+    "settings": "Paramètres"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "loading": "Chargement...",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "actions": "Actions",
+    "status": "Statut",
+    "name": "Nom",
+    "email": "E-mail",
+    "role": "Rôle",
+    "createdAt": "Créé le",
+    "yes": "Oui",
+    "no": "Non",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "back": "Retour",
+    "view": "Voir",
+    "details": "Détails",
+    "copy": "Copier",
+    "copied": "Copié !",
+    "or": "ou",
+    "noData": "Aucune donnée trouvée",
+    "error": "Une erreur est survenue",
+    "success": "Succès",
+    "refresh": "Actualiser",
+    "export": "Exporter",
+    "filter": "Filtrer",
+    "from": "De",
+    "to": "À",
+    "apply": "Appliquer",
+    "clear": "Effacer",
+    "total": "Total",
+    "page": "Page",
+    "of": "sur",
+    "perPage": "par page"
+  },
+  "theme": {
+    "light": "Clair",
+    "dark": "Sombre",
+    "toggle": "Changer le thème"
+  },
+  "language": {
+    "en": "English",
+    "ar": "العربية",
+    "fr": "Français"
+  },
+  "auth": {
+    "signIn": "Se connecter",
+    "signOut": "Se déconnecter",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "adminSignIn": "Connexion Admin",
+    "adminSignInDesc": "Entrez vos identifiants pour accéder à la console d'administration.",
+    "developerSignIn": "Connexion Développeur",
+    "developerSignInDesc": "Connectez-vous pour accéder à vos clés API et votre utilisation.",
+    "invalidCredentials": "Identifiants invalides",
+    "signInFailed": "Échec de la connexion",
+    "noAccount": "Pas encore de compte ?",
+    "signUp": "S'inscrire",
+    "haveAccount": "Vous avez déjà un compte ?",
+    "createAccount": "Créer un compte",
+    "createAccountDesc": "Inscrivez-vous pour obtenir votre clé API et commencer à développer.",
+    "fullName": "Nom complet",
+    "tempPassword": "Mot de passe temporaire",
+    "registerFailed": "Échec de l'inscription",
+    "registered": "Compte créé !",
+    "registeredDesc": "Votre compte est prêt. Vous pouvez maintenant vous connecter.",
+    "forgotPassword": "Mot de passe oublié ?",
+    "resetPassword": "Réinitialiser le mot de passe",
+    "resetPasswordDesc": "Entrez votre e-mail et nous vous enverrons un lien de réinitialisation.",
+    "sendResetLink": "Envoyer le lien",
+    "sending": "Envoi...",
+    "checkEmail": "Vérifiez votre e-mail",
+    "checkEmailDesc": "Si un compte existe, nous avons envoyé un lien de réinitialisation. Il expire dans 1 heure.",
+    "backToSignIn": "Retour à la connexion",
+    "newPassword": "Nouveau mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "passwordMismatch": "Les mots de passe ne correspondent pas",
+    "passwordMin": "Doit contenir au moins 8 caractères",
+    "passwordChanged": "Mot de passe modifié avec succès !",
+    "passwordChangedDesc": "Redirection vers la page de connexion...",
+    "setNewPassword": "Définir un nouveau mot de passe",
+    "invalidResetLink": "Lien de réinitialisation invalide",
+    "invalidResetLinkDesc": "Ce lien est manquant ou expiré. Veuillez en demander un nouveau.",
+    "requestNewLink": "Demander un nouveau lien"
+  },
+  "admin": {
+    "title": "Administration AI Gateway",
+    "dashboard": {
+      "title": "Tableau de bord",
+      "totalDevelopers": "Total Développeurs",
+      "activeKeys": "Clés API actives",
+      "requestsToday": "Requêtes aujourd'hui",
+      "costThisMonth": "Revenus ce mois",
+      "vsLastMonth": "vs mois dernier",
+      "recentActivity": "Activité récente"
+    },
+    "developers": {
+      "title": "Développeurs",
+      "addDeveloper": "Ajouter un développeur",
+      "searchPlaceholder": "Rechercher par e-mail ou nom...",
+      "creditBalance": "Solde de crédits",
+      "apiKeys": "Clés API",
+      "totalKeys": "total",
+      "createTitle": "Ajouter un développeur",
+      "createDesc": "Créer un nouveau compte développeur et générer sa première clé API.",
+      "fullName": "Nom complet",
+      "tempPassword": "Mot de passe temporaire",
+      "initialPlan": "Forfait initial",
+      "selectPlan": "Choisir un forfait",
+      "creating": "Création...",
+      "createDeveloper": "Créer le développeur",
+      "developerCreated": "Développeur créé",
+      "developerCreatedDesc": "Le compte développeur a été créé et une première clé API a été générée.",
+      "apiKeyWarning": "Copiez cette clé maintenant. Elle ne sera plus affichée.",
+      "done": "Terminé",
+      "viewDetails": "Voir les détails",
+      "noResults": "Aucun développeur trouvé"
+    },
+    "apiKeys": {
+      "title": "Clés API",
+      "prefix": "Préfixe",
+      "plan": "Forfait",
+      "balance": "Solde de crédits",
+      "lastUsed": "Dernière utilisation",
+      "revokedAt": "Révoquée",
+      "never": "Jamais",
+      "revoke": "Révoquer",
+      "revokeConfirm": "Êtes-vous sûr de vouloir révoquer cette clé ?",
+      "revokeDesc": "Cette action est irréversible. Le développeur perdra l'accès immédiatement.",
+      "noKeys": "Aucune clé API trouvée"
+    },
+    "plans": {
+      "title": "Forfaits d'abonnement",
+      "createPlan": "Créer un forfait",
+      "monthlyCredits": "Crédits mensuels",
+      "rateLimit": "Limite de débit (RPM)",
+      "allowedModels": "Modèles autorisés",
+      "pricePerMonth": "Prix/Mois",
+      "editPlan": "Modifier le forfait",
+      "planName": "Nom du forfait",
+      "description": "Description",
+      "creditsHelp": "Crédits alloués par période de facturation",
+      "rpmHelp": "Nombre maximum de requêtes par minute",
+      "dailyLimit": "Limite journalière (RPD)",
+      "dailyLimitHelp": "Nombre max de requêtes par jour (0 = illimité). Réinitialisé à 00:00 UTC.",
+      "priceHelp": "0 = forfait gratuit",
+      "modelsHelp": "Sélectionnez les modèles accessibles avec ce forfait",
+      "creating": "Création...",
+      "saving": "Enregistrement...",
+      "deletePlan": "Supprimer le forfait",
+      "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce forfait ?",
+      "deleteDesc": "Cela peut affecter les développeurs actuellement sur ce forfait.",
+      "noPlans": "Aucun forfait",
+      "free": "Gratuit",
+      "perMonth": "/mois",
+      "textModels": "Modèles de texte",
+      "imageModels": "Modèles d'image",
+      "videoModels": "Modèles vidéo",
+      "modelPricing": "Tarification des modèles"
+    },
+    "providers": {
+      "title": "Fournisseurs IA",
+      "addProvider": "Ajouter un fournisseur",
+      "projectId": "ID du projet",
+      "region": "Région",
+      "credentials": "Identifiants",
+      "noProviders": "Aucun fournisseur configuré"
+    },
+    "credits": {
+      "addCredits": "Ajouter des crédits gratuits",
+      "addCreditsDesc": "Ajouter des crédits gratuits au compte du développeur.",
+      "selectKey": "Sélectionner une clé API",
+      "amount": "Montant des crédits",
+      "amountHelp": "Montant à ajouter au solde actuel",
+      "adding": "Ajout...",
+      "added": "Crédits ajoutés avec succès"
+    },
+    "auditLog": {
+      "title": "Journal d'audit",
+      "subtitle": "Suivez toutes les actions admin et les événements de sécurité",
+      "action": "Action",
+      "actor": "Acteur",
+      "target": "Cible",
+      "details": "Détails",
+      "ip": "Adresse IP",
+      "timestamp": "Horodatage",
+      "noEntries": "Aucune entrée dans le journal d'audit.",
+      "searchPlaceholder": "Rechercher action, e-mail...",
+      "fromDate": "Date de début",
+      "toDate": "Date de fin",
+      "applyFilters": "Appliquer les filtres",
+      "system": "Système"
+    }
+  },
+  "portal": {
+    "title": "Portail Développeur",
+    "dashboard": {
+      "title": "Tableau de bord",
+      "welcome": "Bon retour",
+      "totalBalance": "Solde total de crédits",
+      "requestsMonth": "Requêtes ce mois",
+      "tokensMonth": "Tokens ce mois",
+      "myApiKeys": "Mes clés API",
+      "gettingStarted": "Premiers pas",
+      "noKeys": "Aucune clé API pour l'instant"
+    },
+    "usage": {
+      "title": "Historique d'utilisation",
+      "model": "Modèle",
+      "tokens": "Tokens",
+      "cost": "Coût",
+      "date": "Date",
+      "noUsage": "Aucun historique d'utilisation"
+    },
+    "settings": {
+      "title": "Paramètres du compte",
+      "subtitle": "Gérez vos préférences et la sécurité de votre compte.",
+      "profile": "Profil",
+      "profileDesc": "Informations de votre compte",
+      "memberSince": "Membre depuis",
+      "emailStatus": "Statut e-mail",
+      "verified": "Vérifié",
+      "notVerified": "Non vérifié",
+      "dangerZone": "Zone dangereuse",
+      "dangerZoneDesc": "Actions irréversibles — procédez avec précaution",
+      "deleteAccount": "Supprimer le compte",
+      "deleteAccountDesc": "Supprimez définitivement votre compte, toutes vos clés API et vos données d'utilisation. Cette action est irréversible.",
+      "deleteAccountConfirmTitle": "Supprimer définitivement le compte",
+      "deleteAccountConfirmDesc": "Cela supprimera définitivement votre compte, révoquera toutes les clés API et effacera vos données. Cette action est irréversible.",
+      "confirmWithPassword": "Confirmez avec votre mot de passe",
+      "typeDeleteToConfirm": "Tapez DELETE pour confirmer",
+      "deleting": "Suppression..."
+    }
+  },
+  "landing": {
+    "nav": {
+      "features": "Fonctionnalités",
+      "models": "Modèles",
+      "howItWorks": "Comment ça marche",
+      "pricing": "Tarifs",
+      "signIn": "Connexion",
+      "getStarted": "Commencer"
+    },
+    "hero": {
+      "badge": "Propulsé par Google Vertex AI — Disponible maintenant",
+      "title1": "Tous les modèles IA.",
+      "title2": "Une seule clé API.",
+      "subtitle": "Gemini, DeepSeek, Grok, Mistral & plus — connectez votre application à plus de 25 modèles IA avec une seule ligne de code. Facturation en DZD, latence inférieure à 100ms.",
+      "cta": "Commencer gratuitement",
+      "ctaSecondary": "Voir la documentation",
+      "noCreditCard": "Sans carte bancaire · Sans engagement · Démarrez en 60 secondes",
+      "stat1Value": "25+",
+      "stat1Label": "Modèles IA",
+      "stat2Value": "99.9%",
+      "stat2Label": "Disponibilité",
+      "stat3Value": "<100ms",
+      "stat3Label": "Latence",
+      "stat4Value": "1.1×",
+      "stat4Label": "Majoration seulement"
+    },
+    "features": {
+      "title": "Tout ce dont vous avez besoin en une seule plateforme",
+      "subtitle": "Plus besoin de gérer plusieurs clés API ou de traiter avec plusieurs fournisseurs. Notre passerelle gère tout.",
+      "items": [
+        {
+          "title": "Clé API unifiée",
+          "desc": "Une seule clé pour accéder à tous les modèles. Pas de clés multiples, pas de configuration complexe."
+        },
+        {
+          "title": "Sécurité entreprise",
+          "desc": "Chiffrement AES-256-GCM, vérification par e-mail et journal d'audit complet pour toutes les actions."
+        },
+        {
+          "title": "Analytiques avancées",
+          "desc": "Graphiques interactifs pour les requêtes, tokens et coûts. Filtrez par modèle, date et utilisateur."
+        },
+        {
+          "title": "Facturation flexible",
+          "desc": "Système de crédits prépayés. Payez uniquement ce que vous utilisez avec des forfaits entreprise personnalisés."
+        },
+        {
+          "title": "Contrôle du débit",
+          "desc": "Protection automatique contre la surutilisation. Limites RPM personnalisées par forfait."
+        },
+        {
+          "title": "Multi-locataires",
+          "desc": "Créez des comptes développeurs et assignez différents rôles et forfaits depuis un seul tableau de bord."
+        }
+      ]
+    },
+    "models": {
+      "title": "Modèles pris en charge",
+      "subtitle": "Accès unifié aux meilleurs modèles IA du marché",
+      "text": "Modèles texte et dialogue",
+      "image": "Modèles de génération d'images",
+      "video": "Modèles de génération vidéo",
+      "textModels": [
+        "Gemini 2.5 Pro",
+        "Gemini 2.5 Flash",
+        "Grok 4.1 Fast",
+        "Grok 4.1 Thinking",
+        "Mistral Large 3",
+        "Llama 3.3 70B",
+        "DeepSeek R1",
+        "Kimi K2.5"
+      ],
+      "imageModels": [
+        "Imagen 3",
+        "Imagen 3 Fast",
+        "FLUX 1.1 Pro"
+      ],
+      "videoModels": [
+        "Veo 2",
+        "Veo 3"
+      ]
+    },
+    "howItWorks": {
+      "title": "Comment ça marche en 3 étapes",
+      "subtitle": "Démarrez en quelques minutes, pas en quelques jours",
+      "steps": [
+        {
+          "num": "1",
+          "title": "Créez votre compte",
+          "desc": "Inscrivez-vous gratuitement et obtenez une clé API instantanée. Sans complexité, sans attente."
+        },
+        {
+          "num": "2",
+          "title": "Choisissez votre modèle",
+          "desc": "Choisissez parmi 41 modèles IA : texte, images et vidéo. Tout via un seul endpoint."
+        },
+        {
+          "num": "3",
+          "title": "Développez et évoluez",
+          "desc": "Envoyez votre première requête en une minute. Surveillez l'utilisation et les coûts depuis le tableau de bord."
+        }
+      ]
+    },
+    "code": {
+      "title": "Prêt à intégrer en quelques minutes",
+      "subtitle": "Utilisez n'importe quel langage de programmation avec la bibliothèque HTTP standard"
+    },
+    "plans": {
+      "title": "Forfaits adaptés à tous les besoins",
+      "subtitle": "Commencez gratuitement et évoluez quand vous êtes prêt. Sans frais cachés.",
+      "free": {
+        "name": "Gratuit",
+        "price": "0 DZD",
+        "period": "/mois",
+        "desc": "Parfait pour les projets personnels et l'expérimentation",
+        "features": [
+          "Accès aux modèles texte de base",
+          "1 000 requêtes/mois",
+          "10 requêtes/minute",
+          "Tableau de bord basique",
+          "Support communautaire"
+        ]
+      },
+      "pro": {
+        "name": "Pro",
+        "price": "29 $",
+        "period": "/mois",
+        "badge": "Le plus populaire",
+        "desc": "Pour les développeurs et les projets de taille moyenne",
+        "features": [
+          "Tous les modèles texte et image",
+          "50 000 requêtes/mois",
+          "60 requêtes/minute",
+          "Analytiques avancées",
+          "Support par e-mail",
+          "Notifications de crédit faible"
+        ]
+      },
+      "enterprise": {
+        "name": "Entreprise",
+        "price": "Contactez-nous",
+        "period": "",
+        "desc": "Pour les grandes entreprises avec des besoins personnalisés",
+        "features": [
+          "Tous les modèles dont vidéo",
+          "Requêtes illimitées",
+          "Limites de débit personnalisées",
+          "SLA 99.9% de disponibilité",
+          "Support dédié 24/7",
+          "Déploiement privé disponible"
+        ]
+      },
+      "cta": "Commencer",
+      "ctaEnterprise": "Contacter les ventes",
+      "popular": "Le plus populaire"
+    },
+    "cta": {
+      "title": "Prêt à vous lancer ?",
+      "subtitle": "Rejoignez les développeurs qui construisent avec l'IA. Compte gratuit en quelques secondes.",
+      "button": "Créer votre compte gratuit",
+      "buttonSecondary": "Se connecter"
+    },
+    "footer": {
+      "tagline": "Passerelle IA pour développeurs et entreprises",
+      "portal": "Portail développeur",
+      "admin": "Panneau d'administration",
+      "rights": "Tous droits réservés"
+    }
+  },
+  "promoCodes": {
+    "title": "Codes promo",
+    "subtitle": "Créez des codes promotionnels pour accorder des crédits gratuits aux utilisateurs",
+    "createCode": "Créer un code",
+    "editCode": "Modifier le code",
+    "code": "Code",
+    "creditsAmount": "Montant des crédits (USD)",
+    "maxUses": "Utilisations max",
+    "usedCount": "Fois utilisé",
+    "expiresAt": "Expire le",
+    "note": "Note",
+    "noExpiry": "Sans expiration",
+    "noCodes": "Aucun code promo",
+    "codePlaceholder": "ex. BIENVENUE50",
+    "notePlaceholder": "Note interne (optionnel)",
+    "usage": "{{used}} sur {{max}}",
+    "exhausted": "Épuisé",
+    "expired": "Expiré",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce code ?",
+    "redeemTitle": "Vous avez un code promo ?",
+    "redeemDescription": "Entrez un code pour ajouter des crédits gratuits à votre compte",
+    "redeemPlaceholder": "Entrez le code promo",
+    "redeemButton": "Utiliser",
+    "redeemSuccess": "Succès ! {{credits}} $ ajoutés à votre solde",
+    "errors": {
+      "invalid_code": "Code promo invalide",
+      "code_inactive": "Ce code n'est plus actif",
+      "code_expired": "Ce code a expiré",
+      "code_exhausted": "Ce code a atteint sa limite d'utilisation",
+      "already_used": "Vous avez déjà utilisé ce code"
+    }
+  },
+  "models": {
+    "text": "Texte",
+    "image": "Image",
+    "video": "Vidéo",
+    "embedding": "Embedding",
+    "pricingInput": "Entrée",
+    "pricingOutput": "Sortie",
+    "pricingThinking": "Raisonnement",
+    "pricingPerImage": "Par image",
+    "pricingPerSecond": "Par seconde",
+    "per1M": "par 1M tokens",
+    "new": "Nouveau",
+    "preview": "Aperçu",
+    "audio": "Audio",
+    "inpainting": "Retouche"
+  },
+  "status": {
+    "title": "État du système",
+    "lastChecked": "Dernière vérification",
+    "uptime24h": "Disponibilité (24h)",
+    "uptime7d": "Disponibilité (7j)",
+    "uptime30d": "Disponibilité (30j)",
+    "activeIncidents": "Incidents actifs",
+    "recentIncidents": "Incidents récents",
+    "noActiveIncidents": "Tous les systèmes opérationnels. Aucun incident actif.",
+    "noRecentIncidents": "Aucun incident signalé au cours des 30 derniers jours.",
+    "overall": {
+      "operational": "Tous les systèmes opérationnels",
+      "degraded": "Performances dégradées",
+      "major_outage": "Panne majeure",
+      "unknown": "Statut inconnu"
+    },
+    "severity": {
+      "minor": "Mineur",
+      "major": "Majeur",
+      "critical": "Critique",
+      "maintenance": "Maintenance"
+    },
+    "statusValues": {
+      "investigating": "En cours d'investigation",
+      "identified": "Identifié",
+      "monitoring": "Surveillance",
+      "resolved": "Résolu"
+    }
+  },
+  "incidents": {
+    "title": "Incidents",
+    "subtitle": "Gérer les incidents de la page de statut",
+    "all": "Tous les incidents",
+    "new": "Nouvel incident",
+    "edit": "Modifier l'incident",
+    "titleEn": "Titre (anglais)",
+    "titleAr": "Titre (arabe)",
+    "bodyEn": "Description (anglais)",
+    "bodyAr": "Description (arabe)",
+    "status": "Statut",
+    "severity": "Gravité"
+  },
+  "orgs": {
+    "title": "Organisations",
+    "subtitle": "Gérez vos équipes et espaces de travail partagés",
+    "mine": "Mes organisations",
+    "create": "Créer une organisation",
+    "name": "Nom de l'organisation",
+    "empty": "Vous n'appartenez à aucune organisation. Créez-en une pour commencer.",
+    "members": "Membres",
+    "pendingInvites": "Invitations en attente",
+    "noPendingInvites": "Aucune invitation en attente.",
+    "expires": "expire",
+    "rename": "Renommer",
+    "delete": "Supprimer l'organisation",
+    "confirmDelete": "Êtes-vous sûr ? Cela supprimera définitivement l'organisation et toutes ses données.",
+    "dangerZone": "Zone dangereuse",
+    "role": {
+      "label": "Rôle",
+      "owner": "Propriétaire",
+      "admin": "Administrateur",
+      "developer": "Développeur",
+      "viewer": "Lecteur"
+    },
+    "invite": {
+      "button": "Inviter un membre",
+      "send": "Envoyer l'invitation",
+      "sent": "Invitation envoyée",
+      "acceptTitle": "Accepter l'invitation",
+      "acceptDesc": "Vous avez été invité à rejoindre une organisation. Cliquez ci-dessous pour accepter.",
+      "accept": "Accepter l'invitation"
+    }
+  }
+}

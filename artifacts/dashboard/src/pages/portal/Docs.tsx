@@ -1,0 +1,2013 @@
+import { useGetPortalApiKeys } from "@workspace/api-client-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import {
+  Copy, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
+} from "lucide-react";
+import { useState, useEffect, Fragment } from "react";
+import { useToast } from "@/hooks/use-toast";
+import i18n from "@/i18n";
+
+const GATEWAY_URL = window.location.origin;
+const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+interface DocsVideo {
+  title: string;
+  url: string;
+}
+
+/**
+ * Extracts YouTube video ID from common URL formats:
+ *   https://www.youtube.com/watch?v=ID
+ *   https://youtu.be/ID
+ *   https://www.youtube.com/embed/ID
+ *   https://www.youtube.com/shorts/ID
+ * Returns null for non-YouTube URLs (caller should fall back to a plain link).
+ */
+function extractYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") {
+      const id = u.pathname.slice(1).split("/")[0];
+      return /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
+    }
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const v = u.searchParams.get("v");
+      if (v && /^[a-zA-Z0-9_-]{11}$/.test(v)) return v;
+      const m = u.pathname.match(/^\/(embed|shorts|v)\/([a-zA-Z0-9_-]{11})/);
+      if (m) return m[2];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function CodeBlock({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const copy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({ title: "Copied to clipboard" });
+  };
+
+  return (
+    <div className="relative group">
+      <pre className="p-4 rounded-lg bg-[#0d1117] text-[#c9d1d9] text-xs overflow-x-auto border border-border/50 leading-relaxed">
+        <code>{code}</code>
+      </pre>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity bg-[#21262d] hover:bg-[#30363d] text-[#8b949e]"
+        onClick={copy}
+      >
+        {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+      </Button>
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-lg font-semibold tracking-tight">{children}</h2>;
+}
+
+interface ModelRow {
+  id: string;
+  alias?: string;
+  type: "Text" | "Image" | "Video";
+  pricing: string;
+  description: string;
+  useCases: string[];
+  quality: number;
+  sortPrice: number;
+  supportsTools?: boolean;
+}
+
+interface ModelSection {
+  label: string;
+  provider: string;
+  models: ModelRow[];
+}
+
+function parsePricing(pricing: string, type: "Text" | "Image" | "Video") {
+  if (type === "Text") {
+    const m = pricing.match(/\$([\d.]+)\s*\/\s*\$([\d.]+)/);
+    if (m) return { in: `$${m[1]}/1M`, out: `$${m[2]}/1M` };
+  }
+  if (type === "Image") {
+    const m = pricing.match(/\$([\d.]+)\s*per image/);
+    if (m) return { flat: `$${m[1]}/img` };
+  }
+  if (type === "Video") {
+    const m = pricing.match(/\$([\d.]+)\s*per second/);
+    if (m) return { flat: `$${m[1]}/sec` };
+  }
+  return { flat: pricing };
+}
+
+const PROVIDER_COLORS: Record<string, { bg: string; text: string }> = {
+  Google:   { bg: "rgba(66,133,244,0.15)",  text: "#4285f4" },
+  xAI:      { bg: "rgba(255,255,255,0.1)",  text: "rgba(255,255,255,0.7)" },
+  DeepSeek: { bg: "rgba(79,70,229,0.15)",   text: "#818cf8" },
+  Kimi:     { bg: "rgba(20,184,166,0.15)",  text: "#2dd4bf" },
+  MiniMax:  { bg: "rgba(168,85,247,0.15)",  text: "#c084fc" },
+  Zhipu:    { bg: "rgba(234,179,8,0.15)",   text: "#facc15" },
+  Mistral:  { bg: "rgba(249,115,22,0.15)",  text: "#fb923c" },
+  Meta:     { bg: "rgba(24,119,242,0.15)",  text: "#60a5fa" },
+};
+
+function ModelCard({ m, provider }: { m: ModelRow; provider: string }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+  const pColor = PROVIDER_COLORS[provider] ?? { bg: "rgba(255,255,255,0.08)", text: "rgba(255,255,255,0.5)" };
+  const priceData = parsePricing(m.pricing, m.type);
+
+  const copy = () => {
+    navigator.clipboard.writeText(m.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({ title: "Model ID copied", description: m.id });
+  };
+
+  return (
+    <div
+      className="flex flex-col rounded-xl p-4 gap-3 transition-all hover:scale-[1.01]"
+      style={{ background: "#13131f", border: "1px solid rgba(255,255,255,0.07)" }}
+    >
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-bold text-sm text-white leading-tight truncate">{m.id}</p>
+          <p className="text-xs mt-0.5 line-clamp-1" style={{ color: "rgba(255,255,255,0.38)" }}>{m.description}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: pColor.bg, color: pColor.text }}>
+            {provider}
+          </span>
+          {m.supportsTools && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5" style={{ background: "rgba(234,179,8,0.15)", color: "#facc15" }}>
+              🔧 Tools
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Pricing badges */}
+      <div className="flex flex-wrap gap-1.5">
+        {"in" in priceData && (
+          <>
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(0,200,150,0.12)", color: "#00C896", border: "1px solid rgba(0,200,150,0.2)" }}>
+              IN {priceData.in}
+            </span>
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(249,115,22,0.12)", color: "#fb923c", border: "1px solid rgba(249,115,22,0.2)" }}>
+              OUT {priceData.out}
+            </span>
+          </>
+        )}
+        {"flat" in priceData && (
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(139,92,246,0.12)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.2)" }}>
+            {priceData.flat}
+          </span>
+        )}
+      </div>
+
+      {/* Model ID row */}
+      <div
+        className="flex items-center justify-between rounded-lg px-3 py-2"
+        style={{ background: "#0a0a14", border: "1px solid rgba(255,255,255,0.05)" }}
+      >
+        <code className="text-[10px] font-mono truncate" style={{ color: "rgba(255,255,255,0.45)" }}>
+          model: &quot;{m.id}&quot;
+        </code>
+        <button onClick={copy} className="shrink-0 ml-2 transition-opacity hover:opacity-100 opacity-50">
+          {copied
+            ? <CheckCircle2 className="h-3 w-3" style={{ color: "#00C896" }} />
+            : <Copy className="h-3 w-3 text-white" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type SortMode = "default" | "quality" | "price-asc" | "price-desc";
+
+function ModelIdCell({ id, alias }: { id: string; alias?: string }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const copy = () => {
+    navigator.clipboard.writeText(id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({ title: "Model ID copied", description: id });
+  };
+
+  return (
+    <div className="flex items-start gap-1.5">
+      <div className="min-w-0">
+        <span className="font-mono text-xs">{id}</span>
+        {alias && (
+          <span className="ml-2 text-[10px] text-muted-foreground font-mono bg-muted px-1 py-0 rounded">
+            alias: {alias}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={copy}
+        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+        title="Copy model ID"
+      >
+        {copied
+          ? <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+          : <Copy className="h-3 w-3" />}
+      </button>
+    </div>
+  );
+}
+
+const MODEL_SECTIONS: ModelSection[] = [
+  {
+    label: "Google — Gemini 2.5",
+    provider: "Google",
+    models: [
+      {
+        id: "gemini-2.5-pro",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$1.25 / $10.00 per 1M tokens (in/out)",
+        description: "Google's most capable Gemini 2.5 model. Excels at complex reasoning, long-context documents, coding, and multimodal tasks.",
+        useCases: ["Complex reasoning", "Code generation", "Long documents", "Multimodal"],
+        quality: 6,
+        sortPrice: 1.25,
+      },
+      {
+        id: "gemini-2.5-flash",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$0.30 / $2.50 per 1M tokens (in/out)",
+        description: "Fast and highly capable Gemini 2.5 model. Best balance of speed, quality, and cost for everyday production workloads.",
+        useCases: ["Chat", "Summarization", "Q&A", "Translation"],
+        quality: 15,
+        sortPrice: 0.30,
+      },
+      {
+        id: "gemini-2.5-flash-lite",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$0.10 / $0.40 per 1M tokens (in/out)",
+        description: "Lightest and fastest Gemini 2.5 model. Ideal for simple, high-volume tasks where speed and cost matter most.",
+        useCases: ["Classification", "Simple Q&A", "High-volume tasks"],
+        quality: 17,
+        sortPrice: 0.10,
+      },
+    ],
+  },
+  {
+    label: "Google — Gemini 3.1",
+    provider: "Google",
+    models: [
+      {
+        id: "gemini-3.1-pro-preview",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$2.00 / $12.00 per 1M tokens (in/out)",
+        description: "Google's latest and most powerful model. State-of-the-art reasoning, vision understanding, and code generation capabilities.",
+        useCases: ["Research", "Complex reasoning", "Vision", "Advanced coding"],
+        quality: 1,
+        sortPrice: 2.00,
+      },
+      {
+        id: "gemini-3.1-flash-lite-preview",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$0.25 / $1.50 per 1M tokens (in/out)",
+        description: "Ultra-fast lightweight Gemini 3.1 model. Best for real-time applications requiring Gemini 3.1 generation quality at low latency.",
+        useCases: ["Real-time apps", "Chatbots", "Simple tasks"],
+        quality: 11,
+        sortPrice: 0.25,
+      },
+      {
+        id: "gemini-3.1-flash-image-preview",
+        type: "Text",
+        pricing: "$0.50 / $3.00 per 1M tokens (in/out)",
+        description: "Gemini 3.1 Flash with native image generation support. Create images and text in the same model call.",
+        useCases: ["Creative content", "Image + text generation", "Visual storytelling"],
+        quality: 10,
+        sortPrice: 0.50,
+      },
+    ],
+  },
+  {
+    label: "Google — Gemini 3",
+    provider: "Google",
+    models: [
+      {
+        id: "gemini-3.0-pro-image-preview",
+        type: "Text",
+        pricing: "$2.00 / $12.00 per 1M tokens (in/out)",
+        description: "Gemini 3 Pro with native multimodal image output. Powerful model for combining high-quality text and visual reasoning.",
+        useCases: ["Visual content creation", "Multimodal reasoning", "Creative AI"],
+        quality: 3,
+        sortPrice: 2.00,
+      },
+      {
+        id: "gemini-3.0-flash-preview",
+        type: "Text",
+        pricing: "$0.50 / $3.00 per 1M tokens (in/out)",
+        description: "Fast Gemini 3 model designed for production. Offers Gemini 3 generation quality at significantly lower cost.",
+        useCases: ["Production chatbots", "Real-time apps", "Batch processing"],
+        quality: 13,
+        sortPrice: 0.50,
+      },
+    ],
+  },
+  {
+    label: "Google — Imagen",
+    provider: "Google",
+    models: [
+      {
+        id: "imagen-4.0-generate-001",
+        alias: "imagen-4",
+        type: "Image",
+        pricing: "$0.04 per image",
+        description: "Imagen 4 — Google's latest photorealistic image generation model. Stunning detail, accurate text rendering, and prompt adherence.",
+        useCases: ["Marketing", "Product images", "Creative content"],
+        quality: 2,
+        sortPrice: 0.04,
+      },
+      {
+        id: "imagen-4.0-ultra-generate-001",
+        alias: "imagen-4-ultra",
+        type: "Image",
+        pricing: "$0.06 per image",
+        description: "Imagen 4 Ultra — highest quality image generation available. Premium tier for professional and commercial media production.",
+        useCases: ["Professional media", "Premium advertising", "High-fidelity art"],
+        quality: 1,
+        sortPrice: 0.06,
+      },
+      {
+        id: "imagen-3.0-generate-002",
+        alias: "imagen-3",
+        type: "Image",
+        pricing: "$0.04 per image",
+        description: "Imagen 3 — reliable high-quality image generation. Great balance of quality and cost for standard creative workflows.",
+        useCases: ["Blog images", "Social media", "Product visuals"],
+        quality: 3,
+        sortPrice: 0.04,
+      },
+      {
+        id: "imagen-3.0-fast-generate-001",
+        alias: "imagen-3-fast",
+        type: "Image",
+        pricing: "$0.02 per image",
+        description: "Imagen 3 Fast — quick image generation at the lowest cost. Perfect for high-volume generation and rapid prototyping.",
+        useCases: ["Prototyping", "High-volume generation", "Drafts"],
+        quality: 4,
+        sortPrice: 0.02,
+      },
+    ],
+  },
+  {
+    label: "Google — Veo",
+    provider: "Google",
+    models: [
+      {
+        id: "veo-3.1-generate-001",
+        alias: "veo-3.1",
+        type: "Video",
+        pricing: "$0.40 per second",
+        description: "Veo 3.1 — Google's best-in-class video generation model with native audio. Cinematic quality short videos from text prompts.",
+        useCases: ["Marketing videos", "Social media", "Product demos"],
+        quality: 1,
+        sortPrice: 0.40,
+      },
+      {
+        id: "veo-3.1-fast-generate-001",
+        alias: "veo-3.1-fast",
+        type: "Video",
+        pricing: "$0.12 per second",
+        description: "Veo 3.1 Fast — faster video generation at a lower cost. Great for previews, drafts, and iterative workflows.",
+        useCases: ["Video drafts", "Storyboards", "Rapid iteration"],
+        quality: 3,
+        sortPrice: 0.12,
+      },
+      {
+        id: "veo-3.0-generate-001",
+        alias: "veo-3",
+        type: "Video",
+        pricing: "$0.40 per second",
+        description: "Veo 3 — high-quality video generation with excellent motion coherence and scene understanding.",
+        useCases: ["Video content", "Creative storytelling", "Animation"],
+        quality: 2,
+        sortPrice: 0.40,
+      },
+      {
+        id: "veo-2.0-generate-001",
+        alias: "veo-2",
+        type: "Video",
+        pricing: "$0.50 per second",
+        description: "Veo 2 — previous generation Veo model. Still capable for standard video generation tasks.",
+        useCases: ["Basic video generation", "Legacy workflows"],
+        quality: 4,
+        sortPrice: 0.50,
+      },
+    ],
+  },
+  {
+    label: "xAI — Grok",
+    provider: "xAI",
+    models: [
+      {
+        id: "grok-4.20",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$0.20 / $0.50 per 1M tokens (in/out)",
+        description: "xAI's flagship model with deep reasoning, real-time knowledge, and strong performance on hard benchmarks.",
+        useCases: ["Research", "Deep analysis", "Complex tasks", "Real-time data"],
+        quality: 2,
+        sortPrice: 0.20,
+      },
+      {
+        id: "grok-4.1-thinking",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$0.20 / $0.50 per 1M tokens (in/out)",
+        description: "xAI's step-by-step reasoning model. Excels at math, logic, and multi-step problem solving with transparent thinking.",
+        useCases: ["Math", "Logic", "Problem solving", "Scientific reasoning"],
+        quality: 4,
+        sortPrice: 0.20,
+      },
+    ],
+  },
+  {
+    label: "DeepSeek",
+    provider: "DeepSeek",
+    models: [
+      {
+        id: "deepseek-v3.2",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$0.56 / $1.68 per 1M tokens (in/out)",
+        description: "DeepSeek's latest model with exceptional coding and technical capabilities. One of the strongest open-weight class models available.",
+        useCases: ["Code generation", "Technical analysis", "Data science"],
+        quality: 8,
+        sortPrice: 0.56,
+      },
+    ],
+  },
+  {
+    label: "Google — Gemma MaaS",
+    provider: "Google",
+    models: [
+      {
+        id: "gemma-4-26b",
+        type: "Text",
+        pricing: "$0.20 / $0.80 per 1M tokens (in/out)",
+        description: "Google's open Gemma 4 model served via Vertex AI MaaS. Efficient and capable for general-purpose tasks.",
+        useCases: ["General purpose", "Research", "Text processing"],
+        quality: 14,
+        sortPrice: 0.20,
+      },
+    ],
+  },
+  {
+    label: "Kimi (Moonshot AI)",
+    provider: "Kimi",
+    models: [
+      {
+        id: "kimi-k2",
+        type: "Text",
+        pricing: "$0.60 / $2.50 per 1M tokens (in/out)",
+        description: "Moonshot AI's agentic reasoning model. Excellent for complex multi-step tasks and autonomous agent workflows.",
+        useCases: ["AI agents", "Complex reasoning", "Multi-step tasks"],
+        quality: 7,
+        sortPrice: 0.60,
+      },
+    ],
+  },
+  {
+    label: "MiniMax",
+    provider: "MiniMax",
+    models: [
+      {
+        id: "minimax-m2",
+        type: "Text",
+        pricing: "$0.30 / $1.20 per 1M tokens (in/out)",
+        description: "MiniMax M2 — strong multilingual model with broad knowledge and creative capabilities.",
+        useCases: ["Multilingual", "Creative writing", "General tasks"],
+        quality: 12,
+        sortPrice: 0.30,
+      },
+    ],
+  },
+  {
+    label: "Zhipu AI — GLM-5",
+    provider: "Zhipu",
+    models: [
+      {
+        id: "glm-5",
+        type: "Text",
+        pricing: "$0.10 / $0.40 per 1M tokens (in/out)",
+        description: "Zhipu AI's GLM-5 with exceptional Chinese language support and competitive multilingual performance.",
+        useCases: ["Chinese language", "Multilingual", "General reasoning"],
+        quality: 9,
+        sortPrice: 0.10,
+      },
+    ],
+  },
+  {
+    label: "Mistral AI",
+    provider: "Mistral",
+    models: [
+      {
+        id: "mistral-small",
+        supportsTools: true,
+        type: "Text",
+        pricing: "$0.20 / $0.60 per 1M tokens (in/out)",
+        description: "Mistral Small 3.1 — a fast, efficient European AI model with strong instruction following and multilingual support.",
+        useCases: ["Chat", "Summarization", "Code", "European data residency"],
+        quality: 16,
+        sortPrice: 0.20,
+      },
+    ],
+  },
+];
+
+const ALL_MODELS: ModelRow[] = MODEL_SECTIONS.flatMap((s) => s.models);
+
+function sortModels(models: ModelRow[], mode: SortMode): ModelRow[] {
+  if (mode === "default") return models;
+  return [...models].sort((a, b) => {
+    if (mode === "quality") return a.quality - b.quality;
+    if (mode === "price-asc") return a.sortPrice - b.sortPrice;
+    if (mode === "price-desc") return b.sortPrice - a.sortPrice;
+    return 0;
+  });
+}
+
+function QualityStars({ quality, total }: { quality: number; total: number }) {
+  const pct = Math.max(0, Math.min(1, 1 - (quality - 1) / (total - 1)));
+  const filled = Math.round(pct * 5);
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          className={`h-1.5 w-1.5 rounded-full ${i <= filled ? "bg-primary" : "bg-muted"}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ModelTableRow({ m, maxQuality, showDescription }: {
+  m: ModelRow;
+  maxQuality: number;
+  showDescription: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <tr className="border-t border-border/20 hover:bg-muted/10">
+        <td className="px-4 py-2.5">
+          <ModelIdCell id={m.id} alias={m.alias} />
+        </td>
+        <td className="px-4 py-2.5">
+          <Badge variant="outline" className={
+            m.type === "Text"  ? "text-blue-500 border-blue-500/30 bg-blue-500/5" :
+            m.type === "Image" ? "text-purple-500 border-purple-500/30 bg-purple-500/5" :
+                                 "text-amber-500 border-amber-500/30 bg-amber-500/5"
+          }>{m.type}</Badge>
+        </td>
+        <td className="px-4 py-2.5">
+          <QualityStars quality={m.quality} total={maxQuality} />
+        </td>
+        <td className="px-4 py-2.5 text-muted-foreground text-xs">{m.pricing}</td>
+        <td className="px-4 py-2.5">
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title={expanded ? "Hide details" : "Show details"}
+          >
+            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="border-t border-border/10 bg-muted/20">
+          <td colSpan={5} className="px-4 py-3">
+            <p className="text-xs text-foreground/80 mb-2">{m.description}</p>
+            <div className="flex flex-wrap gap-1">
+              {m.useCases.map((uc) => (
+                <span
+                  key={uc}
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
+                >
+                  {uc}
+                </span>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+export default function PortalDocs() {
+  const { data: apiKeys } = useGetPortalApiKeys();
+  const apiKey = apiKeys?.[0]?.fullKey ?? "YOUR_API_KEY";
+  const base = GATEWAY_URL;
+  const isAr = i18n.language === "ar";
+
+  const [sortMode, setSortMode] = useState<SortMode>("default");
+
+  const [videos, setVideos] = useState<DocsVideo[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE}/api/portal/docs/videos`, { credentials: "include" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ videos: DocsVideo[] }>) : { videos: [] }))
+      .then((data) => {
+        if (!cancelled) setVideos(Array.isArray(data.videos) ? data.videos : []);
+      })
+      .catch(() => {
+        // Non-critical: tutorials section is optional. Silently hide on error.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const maxQuality = Math.max(...ALL_MODELS.map((m) => m.quality));
+
+  const sortedModels = sortModels(ALL_MODELS, sortMode);
+  const isGrouped = sortMode === "default";
+
+  // ── Chat ────────────────────────────────────────────────────────────────────
+  const chatCurl = `curl -X POST "${base}/api/v1/chat" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gemini-3.1-pro-preview",
+    "messages": [
+      {"role": "user", "content": "Hello! How are you?"}
+    ],
+    "temperature": 0.7,
+    "maxOutputTokens": 1024
+  }'`;
+
+  const chatPython = `import requests
+
+response = requests.post(
+    "${base}/api/v1/chat",
+    headers={"Authorization": "Bearer ${apiKey}"},
+    json={
+        "model": "gemini-3.1-pro-preview",
+        "messages": [
+            {"role": "user", "content": "Hello! How are you?"}
+        ],
+        "temperature": 0.7,
+        "maxOutputTokens": 1024
+    }
+)
+
+data = response.json()
+print(data["content"])         # the assistant reply
+print(data["inputTokens"])     # tokens used
+print(data["costUsd"])         # cost charged`;
+
+  const chatJs = `const response = await fetch("${base}/api/v1/chat", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer ${apiKey}",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "gemini-3.1-pro-preview",
+    messages: [{ role: "user", content: "Hello! How are you?" }],
+    temperature: 0.7,
+    maxOutputTokens: 1024
+  })
+});
+
+const data = await response.json();
+console.log(data.content);      // the assistant reply
+console.log(data.inputTokens);  // tokens used
+console.log(data.costUsd);      // cost charged`;
+
+  const chatResponse = `{
+  "id": "req_abc123",
+  "model": "gemini-3.1-pro-preview",
+  "content": "Hello! I'm doing well, thank you for asking.",
+  "inputTokens": 10,
+  "outputTokens": 12,
+  "totalTokens": 22,
+  "costUsd": 0.0000148
+}`;
+
+  // ── Function Calling / Tools ────────────────────────────────────────────────
+  const toolsCurl = `curl -X POST "${base}/api/v1/chat/completions" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {"role": "user", "content": "What is the weather in Paris?"}
+    ],
+    "tools": [{
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather for a city",
+        "parameters": {
+          "type": "object",
+          "properties": { "city": {"type": "string"} },
+          "required": ["city"]
+        }
+      }
+    }],
+    "tool_choice": "auto"
+  }'`;
+
+  const toolsPython = `from openai import OpenAI
+
+client = OpenAI(
+    base_url="${base}/api/v1",
+    api_key="${apiKey}"
+)
+
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get current weather for a city",
+        "parameters": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
+    },
+}]
+
+# 1) First call — model decides to call the tool
+resp = client.chat.completions.create(
+    model="gemini-2.5-flash",
+    messages=[{"role": "user", "content": "What is the weather in Paris?"}],
+    tools=tools,
+    tool_choice="auto",
+)
+
+msg = resp.choices[0].message
+print(msg.tool_calls)            # [{ id, function: { name, arguments } }]
+
+# 2) Run your tool and send the result back
+tool_result = '{"temp_c": 22, "condition": "Sunny"}'
+
+final = client.chat.completions.create(
+    model="gemini-2.5-flash",
+    messages=[
+        {"role": "user", "content": "What is the weather in Paris?"},
+        msg,                                          # assistant turn with tool_calls
+        {"role": "tool",
+         "tool_call_id": msg.tool_calls[0].id,
+         "name": "get_weather",
+         "content": tool_result},
+    ],
+    tools=tools,
+)
+print(final.choices[0].message.content)`;
+
+  const toolsJs = `import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "${base}/api/v1",
+  apiKey: "${apiKey}",
+});
+
+const tools = [{
+  type: "function",
+  function: {
+    name: "get_weather",
+    description: "Get current weather for a city",
+    parameters: {
+      type: "object",
+      properties: { city: { type: "string" } },
+      required: ["city"],
+    },
+  },
+}];
+
+// 1) First call — model decides to call the tool
+const r1 = await client.chat.completions.create({
+  model: "gemini-2.5-flash",
+  messages: [{ role: "user", content: "What is the weather in Paris?" }],
+  tools,
+  tool_choice: "auto",
+});
+
+const msg = r1.choices[0].message;
+console.log(msg.tool_calls);
+
+// 2) Run your tool and feed the result back
+const toolResult = JSON.stringify({ temp_c: 22, condition: "Sunny" });
+
+const r2 = await client.chat.completions.create({
+  model: "gemini-2.5-flash",
+  messages: [
+    { role: "user", content: "What is the weather in Paris?" },
+    msg,
+    {
+      role: "tool",
+      tool_call_id: msg.tool_calls[0].id,
+      name: "get_weather",
+      content: toolResult,
+    },
+  ],
+  tools,
+});
+console.log(r2.choices[0].message.content);`;
+
+  const toolsResponse = `{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "model": "gemini-2.5-flash",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [{
+        "id": "call_abc123",
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "arguments": "{\\"city\\":\\"Paris\\"}"
+        }
+      }]
+    },
+    "finish_reason": "tool_calls"
+  }],
+  "usage": { "prompt_tokens": 219, "completion_tokens": 5, "total_tokens": 224 }
+}`;
+
+  // ── Vision / Multimodal (image + PDF + audio in chat) ───────────────────────
+  const visionCurl = `# Send an image as a Data URL inside a chat message
+curl -X POST "${base}/api/v1/chat/completions" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gemini-2.5-flash",
+    "messages": [{
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "What is in this image?"},
+        {"type": "image_url",
+         "image_url": {"url": "https://example.com/photo.jpg"}}
+      ]
+    }]
+  }'`;
+
+  const visionPython = `import base64
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="${base}/api/v1",
+    api_key="${apiKey}",
+)
+
+# Works for images, PDF, plain text, audio, video — any file under 30 MB.
+with open("invoice.pdf", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode()
+
+resp = client.chat.completions.create(
+    model="gemini-2.5-flash",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Summarise this invoice"},
+            {"type": "image_url",
+             "image_url": {"url": f"data:application/pdf;base64,{b64}"}},
+        ],
+    }],
+)
+print(resp.choices[0].message.content)`;
+
+  const visionJs = `import OpenAI from "openai";
+import { readFileSync } from "node:fs";
+
+const client = new OpenAI({
+  baseURL: "${base}/api/v1",
+  apiKey: "${apiKey}",
+});
+
+const b64 = readFileSync("photo.jpg").toString("base64");
+
+const resp = await client.chat.completions.create({
+  model: "gemini-2.5-flash",
+  messages: [{
+    role: "user",
+    content: [
+      { type: "text", text: "Describe this image" },
+      { type: "image_url",
+        image_url: { url: \`data:image/jpeg;base64,\${b64}\` } },
+    ],
+  }],
+});
+console.log(resp.choices[0].message.content);`;
+
+  // ── Generate (Image) ────────────────────────────────────────────────────────
+  const genCurl = `curl -X POST "${base}/api/v1/generate" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "imagen-4",
+    "prompt": "A sunset over the ocean, photorealistic",
+    "sampleCount": 1
+  }'`;
+
+  const genPython = `import requests, base64
+
+response = requests.post(
+    "${base}/api/v1/generate",
+    headers={"Authorization": "Bearer ${apiKey}"},
+    json={
+        "model": "imagen-4",
+        "prompt": "A sunset over the ocean, photorealistic",
+        "sampleCount": 1
+    }
+)
+
+data = response.json()
+
+# Display or save the first image
+img_b64 = data["images"][0]["base64"]
+img_bytes = base64.b64decode(img_b64)
+
+with open("output.png", "wb") as f:
+    f.write(img_bytes)
+
+print("Cost USD:", data["costUsd"])`;
+
+  const genJs = `const response = await fetch("${base}/api/v1/generate", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer ${apiKey}",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "imagen-4",
+    prompt: "A sunset over the ocean, photorealistic",
+    sampleCount: 1
+  })
+});
+
+const data = await response.json();
+
+// Display the image in the browser
+const img = document.createElement("img");
+img.src = \`data:\${data.images[0].mimeType};base64,\${data.images[0].base64}\`;
+document.body.appendChild(img);
+
+console.log("Cost:", data.costUsd);`;
+
+  const genResponse = `{
+  "id": "req_xyz789",
+  "model": "imagen-4",
+  "images": [
+    {
+      "base64": "<base64-encoded PNG data>",
+      "mimeType": "image/png"
+    }
+  ],
+  "costUsd": 0.052
+}`;
+
+  // ── Video ───────────────────────────────────────────────────────────────────
+  const videoCurl = `# ── Option A: Synchronous mode (recommended for n8n / Zapier / scripts) ──
+# One call, waits up to 4 min. The response includes:
+#   • videoUrl    — Google's signed Cloud Storage URL (expires in ~1 h)
+#   • downloadUrl — A clickable .mp4 link on YOUR gateway (auth-required, never expires)
+# Most users want downloadUrl — paste it into n8n's "HTTP Request → Download File" node.
+curl -X POST "${base}/api/v1/video?wait=true" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "veo-3.1-fast-generate-001",
+    "prompt": "A time-lapse of clouds moving over mountains",
+    "durationSeconds": 8
+  }'
+
+# Example response:
+# {
+#   "jobId": "req_vid123",
+#   "status": "completed",
+#   "videoUrl":    "https://storage.googleapis.com/...",   ← signed Google URL (1 h)
+#   "downloadUrl": "${base}/api/v1/video/req_vid123/download",  ← stable .mp4 link
+#   "model": "veo-3.1-fast-generate-001",
+#   "costUsd": 0.66
+# }
+
+# ── Option B: Async mode — start now, poll later ──
+# Step 1 — Start the job (returns immediately with a jobId)
+curl -X POST "${base}/api/v1/video" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "veo-3.1-fast-generate-001",
+    "prompt": "A time-lapse of clouds moving over mountains",
+    "durationSeconds": 8
+  }'
+
+# Step 2 — Poll status every 5–10 s until completed or failed
+curl "${base}/api/v1/video/{jobId}/status" \\
+  -H "Authorization: Bearer ${apiKey}"
+
+# Step 3 — Download the finished video as a real .mp4 file
+curl -L -o video.mp4 "${base}/api/v1/video/{jobId}/download" \\
+  -H "Authorization: Bearer ${apiKey}"`;
+
+  const videoPython = `import requests, time
+
+# ── Option A: Synchronous mode ─────────────────────────────────────────
+# One call returns the finished videoUrl (up to ~4 min wait).
+sync = requests.post(
+    "${base}/api/v1/video?wait=true",
+    headers={"Authorization": "Bearer ${apiKey}"},
+    json={
+        "model": "veo-3.1-fast-generate-001",
+        "prompt": "A time-lapse of clouds over mountains",
+        "durationSeconds": 8
+    },
+    timeout=300,
+).json()
+print("Video URL:", sync.get("videoUrl"))
+
+# ── Option B: Async mode — start now, poll later ──────────────────────
+start = requests.post(
+    "${base}/api/v1/video",
+    headers={"Authorization": "Bearer ${apiKey}"},
+    json={
+        "model": "veo-3.1-fast-generate-001",
+        "prompt": "A time-lapse of clouds over mountains",
+        "durationSeconds": 8
+    },
+).json()
+job_id = start["jobId"]
+
+while True:
+    s = requests.get(
+        f"${base}/api/v1/video/{job_id}/status",
+        headers={"Authorization": "Bearer ${apiKey}"},
+    ).json()
+
+    if s["status"] == "completed":
+        print("Video URL:", s["videoUrl"])
+        break
+    if s["status"] == "failed":
+        print("Error:", s["errorMessage"])
+        break
+
+    time.sleep(5)
+
+# ── Download as a real .mp4 file (works with any of the URI shapes) ───
+dl = requests.get(
+    f"${base}/api/v1/video/{job_id}/download",
+    headers={"Authorization": "Bearer ${apiKey}"},
+    stream=True,
+)
+with open("video.mp4", "wb") as f:
+    for chunk in dl.iter_content(8192):
+        f.write(chunk)`;
+
+  const videoJs = `// ── Option A: Synchronous mode ─────────────────────────────────────
+// One call waits up to 4 minutes and returns the finished video.
+const sync = await fetch("${base}/api/v1/video?wait=true", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer ${apiKey}",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "veo-3.1-fast-generate-001",
+    prompt: "A time-lapse of clouds over mountains",
+    durationSeconds: 8
+  })
+}).then(r => r.json());
+console.log("Video URL:", sync.videoUrl);
+
+// ── Option B: Async mode — start now, poll later ───────────────────
+const start = await fetch("${base}/api/v1/video", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer ${apiKey}",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "veo-3.1-fast-generate-001",
+    prompt: "A time-lapse of clouds over mountains",
+    durationSeconds: 8
+  })
+});
+const { jobId } = await start.json();
+
+async function pollVideo(jobId) {
+  const res = await fetch(\`${base}/api/v1/video/\${jobId}/status\`, {
+    headers: { "Authorization": "Bearer ${apiKey}" }
+  });
+  const s = await res.json();
+  if (s.status === "completed") return s.videoUrl;
+  if (s.status === "failed") throw new Error(s.errorMessage);
+  await new Promise(r => setTimeout(r, 5000));
+  return pollVideo(jobId);
+}
+
+const videoUrl = await pollVideo(jobId);
+console.log("Video ready:", videoUrl);
+
+// ── Download the finished video as a real MP4 blob ────────────────
+const mp4 = await fetch(\`${base}/api/v1/video/\${jobId}/download\`, {
+  headers: { "Authorization": "Bearer ${apiKey}" }
+}).then(r => r.blob());
+console.log("MP4 size (bytes):", mp4.size);`;
+
+  const videoI2VCurl = `# Image-to-Video — pass an image URL as the start frame
+curl -X POST "${base}/api/v1/video?wait=true" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "veo-3.1-generate-001",
+    "prompt": "The camera slowly zooms in, revealing the full landscape",
+    "durationSeconds": 8,
+    "image": "https://example.com/your-start-frame.jpg"
+  }'
+
+# ── Or send the image as a base64 data URI ──
+curl -X POST "${base}/api/v1/video?wait=true" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "veo-3.1-generate-001",
+    "prompt": "The camera slowly zooms in, revealing the full landscape",
+    "durationSeconds": 8,
+    "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgAB..."
+  }'`;
+
+  const videoI2VPython = `import requests, base64
+
+# ── Option A: send the image as an https:// URL ─────────────────────
+resp = requests.post(
+    "${base}/api/v1/video?wait=true",
+    headers={"Authorization": "Bearer ${apiKey}"},
+    json={
+        "model": "veo-3.1-generate-001",
+        "prompt": "The camera slowly zooms in, revealing the full landscape",
+        "durationSeconds": 8,
+        "image": "https://example.com/your-start-frame.jpg",
+    },
+    timeout=300,
+).json()
+print("Video URL:", resp.get("videoUrl"))
+
+# ── Option B: encode a local file and send as data URI ──────────────
+with open("frame.jpg", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode()
+
+resp = requests.post(
+    "${base}/api/v1/video?wait=true",
+    headers={"Authorization": "Bearer ${apiKey}"},
+    json={
+        "model": "veo-3.1-generate-001",
+        "prompt": "The camera slowly zooms in, revealing the full landscape",
+        "durationSeconds": 8,
+        "image": f"data:image/jpeg;base64,{b64}",
+    },
+    timeout=300,
+).json()
+print("Video URL:", resp.get("videoUrl"))`;
+
+  const videoI2VJs = `// Image-to-Video — send an image URL as the start frame
+const resp = await fetch("${base}/api/v1/video?wait=true", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer ${apiKey}",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "veo-3.1-generate-001",
+    prompt: "The camera slowly zooms in, revealing the full landscape",
+    durationSeconds: 8,
+    image: "https://example.com/your-start-frame.jpg",
+  })
+}).then(r => r.json());
+console.log("Video URL:", resp.videoUrl);
+
+// ── Or send the image as a base64 data URI ────────────────────────
+// (useful when the image is not publicly accessible)
+async function fileToDataUri(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+
+const dataUri = await fileToDataUri(imageFile); // from <input type="file">
+const resp2 = await fetch("${base}/api/v1/video?wait=true", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer ${apiKey}",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "veo-3.1-generate-001",
+    prompt: "The camera slowly zooms in, revealing the full landscape",
+    durationSeconds: 8,
+    image: dataUri,
+  })
+}).then(r => r.json());
+console.log("Video URL:", resp2.videoUrl);`;
+
+  const videoStartResponse = `{
+  "jobId": "req_vid123",
+  "status": "pending",
+  "videoUrl": null,
+  "errorMessage": null,
+  "model": "veo-3.1-fast-generate-001",
+  "costUsd": 2.0,
+  "statusUrl": "/api/v1/video/req_vid123/status",
+  "pollIntervalSeconds": 10,
+  "estimatedSeconds": 60
+}`;
+
+  const videoPollResponse = `{
+  "jobId": "req_vid123",
+  "status": "completed",
+  "videoUrl": "https://storage.googleapis.com/...",
+  "downloadUrl": "${base}/api/v1/video/req_vid123/download",
+  "errorMessage": null,
+  "model": "veo-3.1-fast-generate-001",
+  "costUsd": 0.66
+}`;
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">API Documentation</h1>
+        <p className="text-muted-foreground mt-1">Complete reference for all gateway endpoints with code examples.</p>
+      </div>
+
+      {/* Video Tutorials — admin-managed; rendered at the TOP for maximum visibility. Only renders when at least one video is configured */}
+      {videos.length > 0 && (
+        <Card data-testid="card-video-tutorials" className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-base">{isAr ? "شروحات بالفيديو" : "Video Tutorials"}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 sm:grid-cols-2">
+              {videos.map((v, i) => {
+                const ytId = extractYouTubeId(v.url);
+                return (
+                  <div key={i} className="space-y-2" data-testid={`video-tutorial-${i}`}>
+                    <h3 className="text-sm font-semibold leading-tight" data-testid={`video-title-${i}`}>{v.title}</h3>
+                    {ytId ? (
+                      <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted">
+                        <iframe
+                          src={`https://www.youtube.com/embed/${ytId}`}
+                          title={v.title}
+                          loading="lazy"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          referrerPolicy="strict-origin-when-cross-origin"
+                          className="h-full w-full border-0"
+                          data-testid={`video-iframe-${i}`}
+                        />
+                      </div>
+                    ) : (
+                      <a
+                        href={v.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary underline break-all"
+                        data-testid={`video-link-${i}`}
+                      >
+                        {v.url}
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Base URL */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Base URL</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <CodeBlock code={base} />
+          <div className="text-sm text-muted-foreground space-y-1">
+            <p>All requests require: <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization: Bearer YOUR_API_KEY</code></p>
+            <p>All responses are JSON. Errors return: <code className="text-xs bg-muted px-1 py-0.5 rounded">{"{ \"error\": \"...\" }"}</code></p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Models Reference */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <SectionTitle>Available Models</SectionTitle>
+
+          {/* Sort Controls */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs mr-1 hidden sm:inline" style={{ color: "rgba(255,255,255,0.35)" }}>Sort:</span>
+            {([
+              { mode: "default",    label: "Default",  icon: <ArrowUpDown className="h-3 w-3" /> },
+              { mode: "quality",    label: "Best first", icon: <ArrowUp className="h-3 w-3" /> },
+              { mode: "price-asc",  label: "Cheapest", icon: <ArrowUp className="h-3 w-3" /> },
+              { mode: "price-desc", label: "Priciest", icon: <ArrowDown className="h-3 w-3" /> },
+            ] as { mode: SortMode; label: string; icon: React.ReactNode }[]).map(({ mode, label, icon }) => (
+              <button
+                key={mode}
+                onClick={() => setSortMode(mode)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{
+                  background: sortMode === mode ? "rgba(0,255,224,0.12)" : "rgba(255,255,255,0.05)",
+                  color: sortMode === mode ? "#00FFE0" : "rgba(255,255,255,0.45)",
+                  border: `1px solid ${sortMode === mode ? "rgba(0,255,224,0.25)" : "rgba(255,255,255,0.06)"}`,
+                }}
+              >
+                {icon}{label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {isGrouped ? (
+          MODEL_SECTIONS.map((section) => (
+            <div key={section.label} className="space-y-2">
+              <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.3)" }}>
+                {section.label}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {section.models.map((m) => (
+                  <ModelCard key={m.id} m={m} provider={section.provider} />
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {sortedModels.map((m) => {
+              const sec = MODEL_SECTIONS.find((s) => s.models.some((r) => r.id === m.id));
+              return <ModelCard key={m.id} m={m} provider={sec?.provider ?? "Other"} />;
+            })}
+          </div>
+        )}
+
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+          Model availability depends on your plan. Check the <strong style={{ color: "rgba(255,255,255,0.5)" }}>Plans</strong> page for details.
+        </p>
+      </div>
+
+      {/* Chat Endpoint */}
+      <div className="space-y-3">
+        <SectionTitle>Text Generation</SectionTitle>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/chat</code>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">Chat completions using Gemini, Grok, Mistral, DeepSeek, and 40+ partner models. Supports multi-turn conversations and streaming.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Request Parameters</p>
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-border/30">
+                    {[
+                      ["model", "string", "Required", "Model ID (e.g. gemini-3.1-pro-preview)"],
+                      ["messages", "array", "Required", "Array of {role, content} objects"],
+                      ["temperature", "number", "Optional", "0–2, default 1.0"],
+                      ["maxOutputTokens", "number", "Optional", "Max tokens to generate"],
+                      ["stream", "boolean", "Optional", "Stream response as SSE"],
+                    ].map(([name, type, req, desc]) => (
+                      <tr key={name}>
+                        <td className="py-1.5 pr-2 font-mono text-primary">{name}</td>
+                        <td className="py-1.5 pr-2 text-muted-foreground">{type}</td>
+                        <td className="py-1.5 pr-2 text-muted-foreground">{req}</td>
+                        <td className="py-1.5 text-muted-foreground">{desc}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Response</p>
+                <CodeBlock code={chatResponse} />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Examples</p>
+              <Tabs defaultValue="curl">
+                <TabsList className="mb-3">
+                  <TabsTrigger value="curl">cURL</TabsTrigger>
+                  <TabsTrigger value="python">Python</TabsTrigger>
+                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                </TabsList>
+                <TabsContent value="curl" className="m-0"><CodeBlock code={chatCurl} /></TabsContent>
+                <TabsContent value="python" className="m-0"><CodeBlock code={chatPython} /></TabsContent>
+                <TabsContent value="javascript" className="m-0"><CodeBlock code={chatJs} /></TabsContent>
+              </Tabs>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Function Calling / Tools */}
+      <div className="space-y-3">
+        <SectionTitle>{isAr ? "استدعاء الأدوات (Function Calling)" : "Function Calling / Tools"}</SectionTitle>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/chat/completions</code>
+              <Badge variant="secondary" className="text-[10px]">{isAr ? "متوافق مع OpenAI" : "OpenAI-compatible"}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isAr
+                ? "اسمح للنموذج باستدعاء أدوات/دوال خارجية (Google Sheets، HTTP، قواعد البيانات...). متوافق مع n8n AI Agent، Make.com، LangChain، وOpenAI SDK. تعمل مع كل نماذج Gemini والشركاء (Claude, Llama, Mistral, DeepSeek, Grok)."
+                : "Let the model call external tools/functions (Google Sheets, HTTP, databases, …). Works with n8n AI Agent, Make.com, LangChain, and the OpenAI SDK. Supported on every Gemini and partner model (Claude, Llama, Mistral, DeepSeek, Grok)."}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">{isAr ? "معاملات الإدخال" : "Request Parameters"}</p>
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-border/30">
+                    {[
+                      ["tools", "array", isAr ? "اختياري" : "Optional", isAr ? "قائمة الأدوات بصيغة OpenAI: {type:'function', function:{name, description, parameters}}" : "Array of OpenAI-style tool definitions"],
+                      ["tool_choice", "string|object", isAr ? "اختياري" : "Optional", isAr ? "auto (افتراضي) | none | required | {type:'function', function:{name}}" : "auto (default) | none | required | { type:'function', function:{ name } }"],
+                      ["parallel_tool_calls", "boolean", isAr ? "اختياري" : "Optional", isAr ? "السماح بأكثر من استدعاء أداة في نفس الرد" : "Allow multiple tool calls per response"],
+                      ["messages[role=tool]", "object", isAr ? "للرد" : "For result", isAr ? "أرسل نتيجة الأداة: {role:'tool', tool_call_id, name, content}" : "Send tool result: {role:'tool', tool_call_id, name, content}"],
+                    ].map(([name, type, req, desc]) => (
+                      <tr key={name}>
+                        <td className="py-1.5 pr-2 font-mono text-primary">{name}</td>
+                        <td className="py-1.5 pr-2 text-muted-foreground">{type}</td>
+                        <td className="py-1.5 pr-2 text-muted-foreground">{req}</td>
+                        <td className="py-1.5 text-muted-foreground">{desc}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">{isAr ? "مثال الاستجابة" : "Response (when model calls a tool)"}</p>
+                <CodeBlock code={toolsResponse} />
+              </div>
+            </div>
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+              {isAr
+                ? "ملاحظة: عند استخدام n8n OpenAI Chat Model، اترك خيار \"Use Responses API\" مغلقاً. الأدوات تعمل عبر Chat Completions القياسية."
+                : "Tip: when using n8n's OpenAI Chat Model node, leave \"Use Responses API\" OFF. Tools work over standard Chat Completions."}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">{isAr ? "أمثلة كاملة (دورة استدعاء + رد الأداة)" : "Full examples (tool call + tool result roundtrip)"}</p>
+              <Tabs defaultValue="curl">
+                <TabsList className="mb-3">
+                  <TabsTrigger value="curl">cURL</TabsTrigger>
+                  <TabsTrigger value="python">Python</TabsTrigger>
+                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                </TabsList>
+                <TabsContent value="curl" className="m-0"><CodeBlock code={toolsCurl} /></TabsContent>
+                <TabsContent value="python" className="m-0"><CodeBlock code={toolsPython} /></TabsContent>
+                <TabsContent value="javascript" className="m-0"><CodeBlock code={toolsJs} /></TabsContent>
+              </Tabs>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Vision / Multimodal */}
+      <div className="space-y-3">
+        <SectionTitle>{isAr ? "الرؤية والوسائط المتعددة (Vision)" : "Vision & Multimodal Inputs"}</SectionTitle>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/chat/completions</code>
+              <Badge variant="secondary" className="text-[10px]">image · pdf · audio · video</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isAr
+                ? "أرفق صوراً أو ملفات PDF أو صوتاً أو فيديو داخل رسالة المستخدم. النماذج المدعومة: كل نماذج Gemini (يفضّل gemini-2.5-flash أو gemini-2.5-pro). الحد الأقصى 30MB لكل ملف."
+                : "Attach images, PDFs, audio, or video directly inside a user message. Supported models: all Gemini variants (gemini-2.5-flash and gemini-2.5-pro recommended). Max 30 MB per file."}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm">
+              <p className="text-xs font-medium text-muted-foreground mb-1">{isAr ? "صيغة الرسالة (متوافقة مع OpenAI)" : "Message format (OpenAI-compatible)"}</p>
+              <CodeBlock code={`{
+  "role": "user",
+  "content": [
+    { "type": "text",
+      "text": "${isAr ? "ماذا يوجد في هذه الصورة؟" : "What is in this image?"}" },
+    { "type": "image_url",
+      "image_url": { "url": "https://example.com/photo.jpg" } }
+    // OR a Data URL for any local file:
+    // { "type": "image_url",
+    //   "image_url": { "url": "data:application/pdf;base64,JVBERi0..." } }
+  ]
+}`} />
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-1">
+                <p className="font-semibold text-emerald-700 dark:text-emerald-400">{isAr ? "الأنواع المدعومة" : "Accepted MIME types"}</p>
+                <p className="text-muted-foreground leading-relaxed">
+                  image/jpeg · image/png · image/gif · image/webp · image/heic ·
+                  application/pdf · text/plain · text/markdown · text/csv ·
+                  application/json · text/html · text/xml ·
+                  audio/mpeg · audio/wav · audio/ogg ·
+                  video/mp4 · video/webm
+                </p>
+              </div>
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-1">
+                <p className="font-semibold text-amber-700 dark:text-amber-400">{isAr ? "حدود وقيود" : "Limits & caveats"}</p>
+                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                  <li>{isAr ? "30 MB كحد أقصى لكل ملف" : "30 MB max per file"}</li>
+                  <li>{isAr ? "يفضّل Gemini للملفات غير الصورية (PDF/audio/video)" : "Prefer Gemini for non-image files (PDF/audio/video)"}</li>
+                  <li>{isAr ? "روابط HTTPS و Data URLs مدعومة" : "Both HTTPS URLs and Data URLs work"}</li>
+                  <li>{isAr ? "النماذج النصية البحتة قد تتجاهل المرفقات" : "Text-only models may ignore attachments"}</li>
+                </ul>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">{isAr ? "أمثلة" : "Examples"}</p>
+              <Tabs defaultValue="curl">
+                <TabsList className="mb-3">
+                  <TabsTrigger value="curl">cURL</TabsTrigger>
+                  <TabsTrigger value="python">Python</TabsTrigger>
+                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                </TabsList>
+                <TabsContent value="curl" className="m-0"><CodeBlock code={visionCurl} /></TabsContent>
+                <TabsContent value="python" className="m-0"><CodeBlock code={visionPython} /></TabsContent>
+                <TabsContent value="javascript" className="m-0"><CodeBlock code={visionJs} /></TabsContent>
+              </Tabs>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Generate Endpoint */}
+      <div className="space-y-3">
+        <SectionTitle>Image Generation</SectionTitle>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/generate</code>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">Generate images using Imagen models. Returns base64-encoded PNG images.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Request Parameters</p>
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-border/30">
+                    {[
+                      ["model", "string", "Required", "Imagen model ID"],
+                      ["prompt", "string", "Required", "Image description"],
+                      ["sampleCount", "number", "Optional", "Number of images, default 1"],
+                      ["n", "number", "Optional", "Alias for sampleCount"],
+                    ].map(([name, type, req, desc]) => (
+                      <tr key={name}>
+                        <td className="py-1.5 pr-2 font-mono text-primary">{name}</td>
+                        <td className="py-1.5 pr-2 text-muted-foreground">{type}</td>
+                        <td className="py-1.5 pr-2 text-muted-foreground">{req}</td>
+                        <td className="py-1.5 text-muted-foreground">{desc}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-xs text-muted-foreground mt-3">
+                  To display the image:<br />
+                  <code className="bg-muted px-1 py-0.5 rounded">data:image/png;base64,{"{images[0].base64}"}</code>
+                </p>
+                <p className="text-xs text-muted-foreground mt-2 p-2 border rounded bg-muted/30">
+                  💡 <strong>Tip:</strong> Numeric fields (<code>sampleCount</code>, <code>n</code>) accept either numbers (<code>1</code>) or numeric strings (<code>"1"</code>) — useful for n8n / Zapier / form-data clients.
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Response</p>
+                <CodeBlock code={genResponse} />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Examples</p>
+              <Tabs defaultValue="curl">
+                <TabsList className="mb-3">
+                  <TabsTrigger value="curl">cURL</TabsTrigger>
+                  <TabsTrigger value="python">Python</TabsTrigger>
+                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                </TabsList>
+                <TabsContent value="curl" className="m-0"><CodeBlock code={genCurl} /></TabsContent>
+                <TabsContent value="python" className="m-0"><CodeBlock code={genPython} /></TabsContent>
+                <TabsContent value="javascript" className="m-0"><CodeBlock code={genJs} /></TabsContent>
+              </Tabs>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Video Endpoint */}
+      <div className="space-y-3">
+        <SectionTitle>Video Generation</SectionTitle>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/video</code>
+              <Badge variant="secondary" className="text-xs">Async</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Generate videos using Veo models. Video generation is asynchronous — start a job then poll for completion.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Step 1 — POST /api/v1/video</p>
+                  <table className="w-full text-xs">
+                    <tbody className="divide-y divide-border/30">
+                      {[
+                        ["model", "string", "Required", "Veo model ID. We recommend veo-3.1-fast-generate-001 for testing — it's the cheapest. Use veo-3.1-generate-001 or veo-2.0-generate-001 for production."],
+                        ["prompt", "string", "Required", "Video description"],
+                        ["durationSeconds", "number", "Optional", "Veo 3.x accepts only 4, 6, or 8 seconds (default 8). Veo 2 accepts 5–8. Sending an unsupported value will fail the job."],
+                      ].map(([name, type, req, desc]) => (
+                        <tr key={name}>
+                          <td className="py-1.5 pr-2 font-mono text-primary">{name}</td>
+                          <td className="py-1.5 pr-2 text-muted-foreground">{type}</td>
+                          <td className="py-1.5 pr-2 text-muted-foreground">{req}</td>
+                          <td className="py-1.5 text-muted-foreground">{desc}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Step 2 — GET /api/v1/video/:jobId/status</p>
+                  <p className="text-xs text-muted-foreground">Poll this endpoint every 5–10 seconds until <code className="bg-muted px-1 rounded">status</code> is <code className="bg-muted px-1 rounded">completed</code> or <code className="bg-muted px-1 rounded">failed</code>. Tip: add <code className="bg-muted px-1 rounded">?wait=true</code> to Step&nbsp;1 to skip polling — the server waits up to 4 minutes and returns the finished video in one call. Duplicate requests within 10 minutes are deduplicated (no double billing).</p>
+                  <p className="text-xs text-muted-foreground mt-2">Step 3 — <code className="bg-muted px-1 rounded">GET /api/v1/video/:jobId/download</code> streams the finished clip back as a real <code className="bg-muted px-1 rounded">video/mp4</code> file with <code className="bg-muted px-1 rounded">Content-Disposition: attachment</code> — ready to save from a browser, n8n, or Zapier.</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Start response</p>
+                  <CodeBlock code={videoStartResponse} />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Poll response (done)</p>
+                  <CodeBlock code={videoPollResponse} />
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Examples</p>
+              <Tabs defaultValue="curl">
+                <TabsList className="mb-3">
+                  <TabsTrigger value="curl">cURL</TabsTrigger>
+                  <TabsTrigger value="python">Python</TabsTrigger>
+                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                </TabsList>
+                <TabsContent value="curl" className="m-0"><CodeBlock code={videoCurl} /></TabsContent>
+                <TabsContent value="python" className="m-0"><CodeBlock code={videoPython} /></TabsContent>
+                <TabsContent value="javascript" className="m-0"><CodeBlock code={videoJs} /></TabsContent>
+              </Tabs>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Image-to-Video */}
+        <Card className="border-primary/20">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/video</code>
+              <Badge className="text-xs bg-primary/20 text-primary border-primary/30">Image-to-Video</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Add a <code className="bg-muted px-1 rounded text-xs">image</code> field to any video request to use an image as the <strong>start frame</strong>.
+              Veo will animate from that frame forward — same models, same pricing.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">New fields (add to any /v1/video request)</p>
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-border/30">
+                    {[
+                      ["image", "string", "Optional", "Start frame. Accepts: (1) https:// URL — fetched by the server, (2) data URI (data:image/jpeg;base64,...), or (3) raw base64 string."],
+                      ["imageMimeType", "string", "Optional", "MIME type when sending raw base64 (not a data URI). Defaults to image/jpeg. Example: image/png, image/webp."],
+                    ].map(([name, type, req, desc]) => (
+                      <tr key={name}>
+                        <td className="py-1.5 pr-2 font-mono text-primary">{name}</td>
+                        <td className="py-1.5 pr-2 text-muted-foreground">{type}</td>
+                        <td className="py-1.5 pr-2 text-muted-foreground">{req}</td>
+                        <td className="py-1.5 text-muted-foreground">{desc}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-3 p-2.5 rounded-md bg-muted/50 border border-border/40 text-xs text-muted-foreground space-y-1">
+                  <p><span className="font-medium text-foreground">Supported models:</span> all Veo models (veo-2.0, veo-3.0, veo-3.1, veo-3.1-fast)</p>
+                  <p><span className="font-medium text-foreground">Best results:</span> use a 16:9 or 9:16 image that matches your target aspect ratio</p>
+                  <p><span className="font-medium text-foreground">URL fetch:</span> server fetches the URL server-side (SSRF-guarded) — the image doesn't need to be accessible from the client</p>
+                  <p><span className="font-medium text-foreground">Max URL fetch size:</span> 15 seconds timeout; no explicit size limit but keep images reasonable (&lt;10 MB)</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Example request body</p>
+                <CodeBlock code={`{
+  "model": "veo-3.1-generate-001",
+  "prompt": "Camera slowly zooms in, cinematic lighting",
+  "durationSeconds": 8,
+  "image": "https://example.com/start-frame.jpg"
+}`} />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Code examples</p>
+              <Tabs defaultValue="curl">
+                <TabsList className="mb-3">
+                  <TabsTrigger value="curl">cURL</TabsTrigger>
+                  <TabsTrigger value="python">Python</TabsTrigger>
+                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                </TabsList>
+                <TabsContent value="curl" className="m-0"><CodeBlock code={videoI2VCurl} /></TabsContent>
+                <TabsContent value="python" className="m-0"><CodeBlock code={videoI2VPython} /></TabsContent>
+                <TabsContent value="javascript" className="m-0"><CodeBlock code={videoI2VJs} /></TabsContent>
+              </Tabs>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Image Edits / Inpainting */}
+      <div className="space-y-3">
+        <SectionTitle>{isAr ? "تعديل الصور (Inpainting)" : "Image Edits (Inpainting)"}</SectionTitle>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/images/edits</code>
+              <Badge variant="secondary" className="text-xs">multipart/form-data</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isAr
+                ? "تعديل الصور باستخدام قناع (mask) وموجه نصي. متوافق مع OpenAI. يستخدم Imagen 3 capability خلف الكواليس."
+                : "Edit images with a mask and a text prompt. OpenAI-compatible. Powered by Imagen 3 capability under the hood."}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <table className="w-full text-xs">
+              <tbody className="divide-y divide-border/30">
+                {[
+                  ["image", "file", "Required", isAr ? "ملف الصورة الأصلية (PNG/JPEG)" : "Original image file (PNG/JPEG)"],
+                  ["mask", "file", "Required", isAr ? "قناع PNG: المناطق الشفافة سيتم تعديلها" : "PNG mask: transparent regions will be edited"],
+                  ["prompt", "string", "Required", isAr ? "وصف التعديل المطلوب" : "Description of the edit"],
+                  ["model", "string", "Optional", isAr ? "افتراضي: dall-e-2 → imagen-3.0-capability-001" : "Default: dall-e-2 → imagen-3.0-capability-001"],
+                  ["n", "number", "Optional", isAr ? "عدد الصور (1-4)" : "Number of images (1-4)"],
+                ].map(([name, type, req, desc]) => (
+                  <tr key={name}>
+                    <td className="py-1.5 pr-2 font-mono text-primary">{name}</td>
+                    <td className="py-1.5 pr-2 text-muted-foreground">{type}</td>
+                    <td className="py-1.5 pr-2 text-muted-foreground">{req}</td>
+                    <td className="py-1.5 text-muted-foreground">{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <CodeBlock code={`curl -X POST https://YOUR_DOMAIN/api/v1/images/edits \\
+  -H "Authorization: Bearer $API_KEY" \\
+  -F image=@photo.png \\
+  -F mask=@mask.png \\
+  -F prompt="Replace the sky with a sunset"`} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Audio TTS / STT */}
+      <div className="space-y-3">
+        <SectionTitle>{isAr ? "الصوت (TTS / STT)" : "Audio (TTS / STT)"}</SectionTitle>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/audio/speech</code>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isAr
+                ? "تحويل النص إلى كلام. متوافق مع OpenAI. يدعم MP3, WAV, OGG. الأسعار حسب عدد الأحرف."
+                : "Text-to-speech. OpenAI-compatible. Supports MP3, WAV, OGG. Priced per character."}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <CodeBlock code={`curl -X POST https://YOUR_DOMAIN/api/v1/audio/speech \\
+  -H "Authorization: Bearer $API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"tts-1","input":"Hello world","voice":"alloy","response_format":"mp3"}' \\
+  --output speech.mp3`} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-primary/10 text-primary font-mono">POST</Badge>
+              <code className="text-base font-mono font-semibold">/api/v1/audio/transcriptions</code>
+              <Badge variant="secondary" className="text-xs">multipart/form-data</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {isAr
+                ? "تحويل الكلام إلى نص. متوافق مع OpenAI Whisper. الأسعار حسب الثانية."
+                : "Speech-to-text. OpenAI Whisper-compatible. Priced per second."}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <CodeBlock code={`curl -X POST https://YOUR_DOMAIN/api/v1/audio/transcriptions \\
+  -H "Authorization: Bearer $API_KEY" \\
+  -F file=@audio.mp3 \\
+  -F model=whisper-1`} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Organizations note */}
+      <div className="space-y-3">
+        <SectionTitle>{isAr ? "الفرق والمؤسسات" : "Teams & Organizations"}</SectionTitle>
+        <Card>
+          <CardContent className="pt-6 text-sm text-muted-foreground space-y-2">
+            <p>
+              {isAr
+                ? "يمكنك إنشاء مؤسسات لمشاركة العمل مع زملائك. كل مؤسسة لديها أعضاء بأدوار (مالك، مسؤول، مطور، مشاهد). الأدوار: المالك يتحكم بالكل؛ المسؤول يدير الأعضاء والدعوات؛ المطور يستخدم API؛ المشاهد للقراءة فقط."
+                : "Create organizations to share work with teammates. Each org has members with roles (owner, admin, developer, viewer). Roles: owner has full control; admin manages members and invites; developer uses APIs; viewer is read-only."}
+            </p>
+            <p>
+              {isAr
+                ? "ملاحظة: في هذه المرحلة، أرصدة المؤسسات ومفاتيح API الخاصة بالمؤسسة هي أساس جاهز — واجهة المستخدم لإنشاء مفاتيح مرتبطة بالمؤسسة وحدود الإنفاق على مستوى المؤسسة ستضاف لاحقاً."
+                : "Note: at this stage, org credit pools and org-owned API keys are foundation-ready — UI to create org-linked keys and org-level spend limits is coming soon."}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Compatibility & Aliases */}
+      <div className="space-y-3">
+        <SectionTitle>Compatibility &amp; Aliases</SectionTitle>
+        <Card>
+          <CardHeader>
+            <p className="text-sm text-muted-foreground">
+              Some clients (n8n, Zapier, OpenAI SDKs) ship with OpenAI-native model names. We accept
+              those and route them to the closest Google Vertex AI equivalent. Every response returns
+              an <code className="bg-muted px-1 rounded">X-Backend-Model</code> header so you always
+              know which real model handled your request.
+            </p>
+            <p className="text-sm text-muted-foreground mt-2" dir="rtl" lang="ar">
+              بعض الواجهات (مثل n8n وZapier) تستخدم أسماء نماذج OpenAI الأصلية. نحن نقبلها ونوجّهها
+              تلقائيًا إلى أحدث نماذج Google Vertex AI المكافئة. كل استجابة تُرجع رأس{" "}
+              <code className="bg-muted px-1 rounded">X-Backend-Model</code> للشفافية.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                Video models (Sora ↔ Veo)
+              </p>
+              <table className="w-full text-xs border border-border/40 rounded">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="py-2 px-3 text-left font-medium">Alias (request)</th>
+                    <th className="py-2 px-3 text-left font-medium">Actual backend model</th>
+                    <th className="py-2 px-3 text-left font-medium">Valid durations</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {[
+                    ["sora-2",         "veo-3.1-fast-generate-001", "4–8 s"],
+                    ["sora-2-pro",     "veo-3.1-generate-001",      "4–8 s"],
+                    ["sora-1.0-turbo", "veo-3.0-generate-001",      "4–8 s"],
+                    ["sora-1.0-mini",  "veo-2.0-generate-001",      "5–8 s (min 5)"],
+                  ].map(([alias, real, dur]) => (
+                    <tr key={alias}>
+                      <td className="py-1.5 px-3 font-mono text-primary">{alias}</td>
+                      <td className="py-1.5 px-3 font-mono text-muted-foreground">{real}</td>
+                      <td className="py-1.5 px-3 text-muted-foreground">{dur}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-xs text-muted-foreground mt-2">
+                If you send an unsupported duration (e.g. 4 s to sora-1.0-mini), the gateway
+                automatically snaps it up to the nearest valid value — you are never billed for
+                more than the snapped duration.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1" dir="rtl" lang="ar">
+                إذا أرسلت مدة غير مدعومة (مثل 4 ثوان لـ sora-1.0-mini)، تُصحّح البوّابة القيمة
+                تلقائياً إلى أقرب مدة صحيحة — ولن تُحاسَب على أكثر من المدة المُصحَّحة.
+              </p>
+            </div>
+
+            {/* Image models (DALL-E ↔ Imagen) */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                Image models (DALL-E / GPT Image ↔ Imagen)
+              </p>
+              <table className="w-full text-xs border border-border/40 rounded">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="py-2 px-3 text-left font-medium">Alias (request)</th>
+                    <th className="py-2 px-3 text-left font-medium">Actual backend model</th>
+                    <th className="py-2 px-3 text-left font-medium">Price / image</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {[
+                    ["dall-e-2", "imagen-3.0-fast-generate-001", "$0.02"],
+                    ["dall-e-3", "imagen-4.0-generate-001", "$0.04"],
+                    ["gpt-image-1", "imagen-4.0-ultra-generate-001", "$0.06"],
+                  ].map(([alias, real, price]) => (
+                    <tr key={alias}>
+                      <td className="py-1.5 px-3 font-mono text-primary">{alias}</td>
+                      <td className="py-1.5 px-3 font-mono text-muted-foreground">{real}</td>
+                      <td className="py-1.5 px-3 text-muted-foreground">{price}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-xs text-muted-foreground mt-2">
+                Mapping is preserved by quality tier: worst → worst, best → best. Aliases bill at the
+                exact same base price as the real backend model (no extra alias premium). The standard
+                gateway markup applies uniformly to every model.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1" dir="rtl" lang="ar">
+                الربط محفوظ حسب طبقة الجودة: الأسوأ → الأسوأ، الأفضل → الأفضل. الأسماء البديلة تُحاسَب
+                بنفس السعر الأساسي للنموذج الفعلي تماماً (دون أي علاوة على الاسم البديل). هامش البوّابة
+                القياسي يُطبَّق بالتساوي على جميع النماذج.
+              </p>
+            </div>
+
+            <div className="text-xs text-muted-foreground space-y-2">
+              <p>
+                <span className="font-medium">Video endpoints:</span>{" "}
+                <code className="bg-muted px-1 rounded">POST /v1/videos</code>,{" "}
+                <code className="bg-muted px-1 rounded">GET /v1/videos/:id</code>,{" "}
+                <code className="bg-muted px-1 rounded">GET /v1/videos/:id/content</code>{" "}
+                — OpenAI Sora-compatible (works with the n8n OpenAI Video node out of the box).
+              </p>
+              <p>
+                <span className="font-medium">Image endpoints:</span>{" "}
+                <code className="bg-muted px-1 rounded">POST /v1/images/generations</code>{" "}
+                — OpenAI-compatible (works with the n8n OpenAI Image node out of the box). Returns{" "}
+                <code className="bg-muted px-1 rounded">{`{ created, data: [{ b64_json }] }`}</code>.
+                The legacy <code className="bg-muted px-1 rounded">POST /v1/generate</code> also accepts
+                these aliases for backward compatibility.
+              </p>
+              <p>
+                <span className="font-medium">Important limits:</span>{" "}
+                Veo 3.1 supports only 4, 6, or 8 seconds. Unsupported values return a clear error
+                message naming both the alias and the real backend (e.g. &quot;sora-2 (powered by
+                veo-3.1-fast-generate-001) supports up to 8 seconds&quot;).
+              </p>
+              <p>
+                <span className="font-medium">Independent rate limits:</span>{" "}
+                Each endpoint group (chat, video, embeddings, generate, responses) has its own RPM
+                bucket, so heavy chat traffic does not starve your video budget.
+              </p>
+              <p dir="rtl" lang="ar">
+                <span className="font-medium">حدود معدّل مستقلّة:</span>{" "}
+                كل مجموعة (chat, video, embeddings, generate, responses) لها سلّتها الخاصة، فلا
+                يستهلك الدردشة المزدحمة حصّة الفيديو. النماذج البديلة (sora-2 → veo-3.1-fast،
+                sora-2-pro → veo-3.1، sora-1.0-turbo → veo-3.0، sora-1.0-mini → veo-2.0)
+                تُرجع رأس <code className="bg-muted px-1 rounded">X-Backend-Model</code>{" "}
+                لمعرفة النموذج الفعلي خلف الكواليس.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

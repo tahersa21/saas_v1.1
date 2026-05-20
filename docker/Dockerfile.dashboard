@@ -1,0 +1,33 @@
+FROM node:24-slim AS builder
+
+WORKDIR /workspace
+
+RUN npm install -g pnpm@10
+
+COPY pnpm-workspace.yaml ./
+COPY package.json ./
+
+COPY lib/ ./lib/
+COPY artifacts/dashboard/ ./artifacts/dashboard/
+
+RUN pnpm install --filter @workspace/dashboard...
+
+ENV NODE_ENV=production
+ENV BASE_PATH=/
+
+RUN pnpm --filter @workspace/dashboard run build
+
+FROM node:24-slim AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /workspace/artifacts/dashboard/dist/public ./dist/public
+COPY --from=builder /workspace/artifacts/dashboard/server.mjs ./server.mjs
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV BASE_PATH=/
+
+EXPOSE 3000
+
+CMD ["node", "server.mjs"]

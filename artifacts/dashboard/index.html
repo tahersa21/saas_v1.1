@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Gateway — Unified API for 25+ AI Models</title>
+    <meta name="description" content="One API key to access Gemini, GPT, Claude, Grok, DeepSeek and 25+ AI models. Unified billing, rate limiting, and real-time usage dashboard." />
+    <meta name="theme-color" content="#07070f" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AI Gateway — Unified API for 25+ AI Models" />
+    <meta property="og:description" content="One API key to access Gemini, GPT, Claude, Grok, DeepSeek and 25+ AI models." />
+    <meta property="og:url" content="https://picindexer.site" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Fonts are self-hosted via @fontsource — no Google Fonts CDN dependency.
+         Served from same origin: no DNS lookup, no extra TCP/TLS, immutable cache. -->
+
+    <!-- Inline critical styles: prevent FOUC and define above-fold animation -->
+    <style>
+      *,*::before,*::after{box-sizing:border-box}
+      html,body{margin:0;padding:0;background:#07070f;color:#fff;font-family:'DM Sans','Inter',sans-serif;-webkit-font-smoothing:antialiased}
+      #root{min-height:100dvh}
+      @keyframes fade-up{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+      .fade-up{animation:fade-up 0.55s cubic-bezier(.22,.68,0,1.2) both}
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
