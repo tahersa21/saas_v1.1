@@ -13,6 +13,29 @@ import { createServer } from "node:http";
 import { createReadStream, statSync, existsSync } from "node:fs";
 import { join, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { request as httpsRequest } from "node:https";
+import { request as httpRequest } from "node:http";
+
+// API proxy — forward /api/* and /v1/* to the backend
+const API_URL = process.env.API_URL || "";
+function proxyToApi(req, res) {
+  if (!API_URL) { res.writeHead(502); res.end("API_URL not configured"); return; }
+  const target = new URL(req.url, API_URL);
+  const isHttps = target.protocol === "https:";
+  const options = {
+    hostname: target.hostname,
+    port: target.port || (isHttps ? 443 : 80),
+    path: target.pathname + target.search,
+    method: req.method,
+    headers: { ...req.headers, host: target.hostname },
+  };
+  const proxyReq = (isHttps ? httpsRequest : httpRequest)(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+  proxyReq.on("error", () => { res.writeHead(502); res.end("Bad Gateway"); });
+  req.pipe(proxyReq);
+}
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DIST = resolve(__dirname, "dist/public");
@@ -89,8 +112,15 @@ function serveFile(filePath, req, res) {
 }
 
 const server = createServer((req, res) => {
+  // Proxy /api/* and /v1/* to the API backend
+  const rawPath = req.url.split("?")[0];
+  if (rawPath.startsWith("/api/") || rawPath === "/api" ||
+      rawPath.startsWith("/v1/") || rawPath === "/v1") {
+    proxyToApi(req, res); return;
+  }
+
   // Strip base path prefix so routing works under a sub-path.
-  let urlPath = req.url.split("?")[0];
+  let urlPath = rawPath;
   if (BASE && urlPath.startsWith(BASE)) {
     urlPath = urlPath.slice(BASE.length) || "/";
   }
